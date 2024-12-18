@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="tracker-container">
+            <h1>Time & Task Tracker</h1>
+            <div class="task-input">
+                <input type="text" id="taskName" placeholder="Enter task name">
+                <button onclick="setTask()">Submit</button>
+            </div>
+
+            <p id="currentTask">Task</p>
+            <p id="timer">00:00:00</p>
+            
+            <div class="button-group">
+                <button onclick="startTimer()">Start</button>
+                <button onclick="stopTimer()">Stop</button>
+                <button onclick="resetTimer()">Reset</button>
+            </div>
+        </div>
+
+        <!-- Separate card for task timeline -->
+        <div class="timeline-container">
+            <h2>Task Timeline</h2>
+            <button onclick="clearHistory()" class="clear-btn">Clear History</button>
+            <ul id="taskList"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Cookie functions
+        function setCookie(name, value, days) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+        }
+
+        function getCookie(name) {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [cookieName, cookieValue] = cookie.split('=').map(c => c.trim());
+                if (cookieName === name) return cookieValue;
+            }
+            return null;
+        }
+
+        // Task section
+        function setTask() {
+            const taskInput = document.getElementById("taskName").value;
+            const currentTask = document.getElementById("currentTask");
+            if (taskInput) {
+                currentTask.textContent = `Task: ${taskInput}`;
+                document.getElementById("taskName").value = "";
+                
+                // Reset timer when starting new task
+                resetTimer();
+                
+                // Add task to timeline with current timestamp
+                addToTimeline(taskInput);
+                
+                // Save to cookie with initial time
+                const tasks = JSON.parse(getCookie('taskTimeline') || '[]');
+                tasks.push({
+                    name: taskInput,
+                    timestamp: new Date().toISOString(),
+                    duration: '00:00:00',
+                    timeSpent: 'Time spent: 00:00:00'
+                });
+                setCookie('taskTimeline', JSON.stringify(tasks), 7);
+            } else {
+                alert("Please enter a task name");
+            }
+        }
+
+        function addToTimeline(taskName) {
+            const taskList = document.getElementById("taskList");
+            const li = document.createElement("li");
+            const timestamp = new Date().toLocaleString();
+            li.textContent = `${timestamp} - ${taskName} (Time spent: 00:00:00)`;
+            taskList.insertBefore(li, taskList.firstChild);
+        }
+
+        // Timer section
+        let startTime, timerInterval;
+        let elapsedTime = 0;
+
+        // Load saved timer state from cookie
+        window.onload = function() {
+            const savedTime = getCookie('elapsedTime');
+            if (savedTime) {
+                elapsedTime = parseInt(savedTime);
+                updateTimer();
+            }
+
+            // Load task timeline from cookie with time spent
+            const tasks = JSON.parse(getCookie('taskTimeline') || '[]');
+            tasks.forEach(task => {
+                const li = document.createElement("li");
+                const timestamp = new Date(task.timestamp).toLocaleString();
+                const timeSpent = task.timeSpent || 'Time spent: 00:00:00';
+                li.textContent = `${timestamp} - ${task.name} (${timeSpent})`;
+                document.getElementById("taskList").appendChild(li);
+            });
+        };
+
+        function startTimer() {
+            if (!timerInterval) {
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function stopTimer() {
+            if (!timerInterval) return; // If timer is not running, do nothing
+            
+            clearInterval(timerInterval);
+            timerInterval = null;
+            
+            // Save current elapsed time to cookie
+            setCookie('elapsedTime', elapsedTime.toString(), 7);
+            
+            // Get current task and time
+            const currentTask = document.getElementById("currentTask").textContent.replace('Task: ', '');
+            const currentTime = document.getElementById("timer").textContent;
+            
+            // Update the most recent task in the list with the time spent
+            const taskList = document.getElementById("taskList");
+            if (taskList.firstChild) {
+                taskList.firstChild.textContent = `${new Date().toLocaleString()} - ${currentTask} (Time spent: ${currentTime})`;
+            }
+            
+            // Update the task in cookie storage
+            const tasks = JSON.parse(getCookie('taskTimeline') || '[]');
+            if (tasks.length > 0) {
+                tasks[tasks.length - 1].duration = currentTime;
+                tasks[tasks.length - 1].timeSpent = `Time spent: ${currentTime}`;
+                setCookie('taskTimeline', JSON.stringify(tasks), 7);
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            elapsedTime = 0;
+            document.getElementById("timer").textContent = "00:00:00";
+            setCookie('elapsedTime', '0', 7);
+        }
+
+        function updateTimer() {
+            elapsedTime = Date.now() - startTime;
+            const totalSeconds = Math.floor(elapsedTime / 1000);
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            
+            document.getElementById("timer").textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        // Add this new function for clearing history
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all task history?')) {
+                document.getElementById("taskList").innerHTML = '';
+                setCookie('taskTimeline', '[]', 7);
+            }
+        }
+    </script>
+</body>
+</html>
